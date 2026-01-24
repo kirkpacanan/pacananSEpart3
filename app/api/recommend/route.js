@@ -70,7 +70,15 @@ const FALLBACK_LIBRARY = {
   ],
   funny: ["Game Night", "Palm Springs", "The Nice Guys", "Booksmart"],
   comedy: ["Game Night", "The Nice Guys", "Spy", "The Grand Budapest Hotel"],
+  uplift: ["The Secret Life of Walter Mitty", "Chef", "Paddington 2"],
+  lift: ["The Secret Life of Walter Mitty", "Chef", "Paddington 2"],
   uplifting: ["The Secret Life of Walter Mitty", "Chef", "Paddington 2"],
+  "feel-good": ["Chef", "Paddington 2", "The Secret Life of Walter Mitty"],
+  feelgood: ["Chef", "Paddington 2", "The Secret Life of Walter Mitty"],
+  happy: ["The Secret Life of Walter Mitty", "About Time", "Sing Street"],
+  sad: ["Eternal Sunshine of the Spotless Mind", "Her", "The Fault in Our Stars"],
+  romance: ["About Time", "The Notebook", "La La Land"],
+  teen: ["The Fault in Our Stars", "To All the Boys I've Loved Before", "Love, Simon"],
   light: ["Chef", "Julie & Julia", "The Grand Budapest Hotel"],
   friendship: ["Paddington 2", "The Intouchables", "Toy Story"],
   cozy: ["Paddington 2", "Chef", "Julie & Julia"],
@@ -105,6 +113,14 @@ const extractKeywordsFallback = (prompt) => {
     themes,
     keywords: [genre, mood, ...themes].filter(Boolean)
   };
+};
+
+const extractSearchTerms = (prompt) => {
+  return normalize(prompt)
+    .replace(/[^a-z0-9\s-]/g, "")
+    .split(/\s+/)
+    .filter((word) => word.length > 3 && !STOPWORDS.has(word))
+    .slice(0, 4);
 };
 
 const parseJson = (value) => {
@@ -160,7 +176,8 @@ const buildQuery = (analysis, prompt, year) => {
   if (keywords.length) {
     return keywords.slice(0, 5).join(" ");
   }
-  const trimmed = prompt.trim().slice(0, 80);
+  const terms = extractSearchTerms(prompt);
+  const trimmed = terms.length ? terms.join(" ") : prompt.trim().slice(0, 60);
   return year ? `${trimmed} ${year}` : trimmed;
 };
 
@@ -179,6 +196,27 @@ const pickFallbackTitles = (prompt, analysis) => {
     const normalized = normalize(tag);
     if (FALLBACK_LIBRARY[normalized]) {
       candidates.push(...FALLBACK_LIBRARY[normalized]);
+    }
+    if (normalized.includes("feel") && normalized.includes("good")) {
+      candidates.push(...FALLBACK_LIBRARY["feel-good"]);
+    }
+    if (normalized.startsWith("uplift") || normalized.startsWith("lift")) {
+      candidates.push(...FALLBACK_LIBRARY.uplifting);
+    }
+    if (normalized.includes("funny") || normalized.includes("comedy")) {
+      candidates.push(...FALLBACK_LIBRARY.comedy);
+    }
+    if (normalized.includes("happy")) {
+      candidates.push(...FALLBACK_LIBRARY.happy);
+    }
+    if (normalized.includes("sad")) {
+      candidates.push(...FALLBACK_LIBRARY.sad);
+    }
+    if (normalized.includes("teen")) {
+      candidates.push(...FALLBACK_LIBRARY.teen);
+    }
+    if (normalized.includes("romance") || normalized.includes("love")) {
+      candidates.push(...FALLBACK_LIBRARY.romance);
     }
     if (normalized === "sci-fi" || normalized === "science fiction") {
       candidates.push(...FALLBACK_LIBRARY["sci-fi"]);

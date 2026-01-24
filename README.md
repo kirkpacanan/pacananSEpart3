@@ -9,7 +9,8 @@ OMDb API.
    - `npm install`
 2. Create `.env.local` with:
    - `OMDB_API_KEY=your_key_here`
-   - `OPENAI_API_KEY=your_key_here` (optional, falls back to heuristics)
+   - `GEMINI_API_KEY=your_key_here` (required for Mood Chat)
+   - `OPENAI_API_KEY=your_key_here` (optional, recommender only)
 3. Start the dev server
    - `npm run dev`
 

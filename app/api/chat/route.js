@@ -1,17 +1,55 @@
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GEMINI_API_KEY =
-  process.env.GEMINI_API_KEY || "AIzaSyBJFpPR5Hx-afU8vJCptkuRuXtiX6e_YXc";
+  process.env.GEMINI_API_KEY || "AIzaSyAnLUW8lvouNdtlPrU80p5bmdnwe9UZdLg";
 
 const MOOD_KEYWORDS = {
-  sad: ["sad", "down", "lonely", "heartbroken", "grief", "cry"],
+  sad: [
+    "sad",
+    "down",
+    "lonely",
+    "heartbroken",
+    "grief",
+    "cry",
+    "not good",
+    "not ok",
+    "bad",
+    "not so great",
+    "broke up",
+    "break up",
+    "heartbreak"
+  ],
   anxious: ["anxious", "nervous", "worried", "stress", "overwhelmed"],
   angry: ["angry", "mad", "frustrated", "irritated"],
   tired: ["tired", "exhausted", "drained", "burnt"],
   happy: ["happy", "excited", "joy", "good", "great"]
 };
 
-const PREFER_MATCH = ["match", "same", "similar", "current", "mirror"];
-const PREFER_UPLIFT = ["uplift", "cheer", "improve", "better", "light", "fun"];
+const PREFER_MATCH = [
+  "match",
+  "same",
+  "similar",
+  "current",
+  "mirror",
+  "stay",
+  "keep",
+  "as is",
+  "match my mood",
+  "based on how i feel"
+];
+const PREFER_UPLIFT = [
+  "uplift",
+  "lift",
+  "cheer",
+  "cheer me up",
+  "improve",
+  "better",
+  "light",
+  "fun",
+  "make me feel better",
+  "pick me up",
+  "brighten",
+  "uplifting"
+];
 const GREETINGS = ["hi", "hello", "hey", "good morning", "good afternoon"];
 const SMALL_TALK = [
   "your name",
@@ -21,6 +59,20 @@ const SMALL_TALK = [
   "whats your name",
   "talk to me",
   "chat"
+];
+const ANOTHER_REQUESTS = [
+  "another",
+  "one more",
+  "again",
+  "new one",
+  "different",
+  "another one"
+];
+const INTRO_PATTERNS = [
+  "i'm ",
+  "im ",
+  "i am ",
+  "my name is "
 ];
 
 const MOOD_PROMPTS = {
@@ -91,30 +143,92 @@ const detectSmallTalk = (text) => {
   return SMALL_TALK.some((phrase) => lower.includes(phrase));
 };
 
+const detectAnother = (text) => {
+  const lower = text.toLowerCase();
+  return ANOTHER_REQUESTS.some((phrase) => lower.includes(phrase));
+};
+
+const detectIntro = (text) => {
+  const lower = text.toLowerCase();
+  return INTRO_PATTERNS.some((pattern) => lower.startsWith(pattern));
+};
+
+const extractName = (text) => {
+  const lower = text.toLowerCase();
+  if (lower.startsWith("my name is ")) {
+    return text.slice(11).trim();
+  }
+  if (lower.startsWith("i am ")) {
+    return text.slice(5).trim();
+  }
+  if (lower.startsWith("i'm ")) {
+    return text.slice(4).trim();
+  }
+  if (lower.startsWith("im ")) {
+    return text.slice(3).trim();
+  }
+  return "";
+};
+
 const extractYear = (text) => {
   const match = text.match(/\b(19|20)\d{2}\b/);
   return match ? match[0] : null;
 };
 
-const buildFallbackResponse = (messages) => {
-  const lastUser = [...messages].reverse().find((msg) => msg.role === "user");
-  const text = lastUser?.content || "";
-  const mood =
-    detectMood(text) ||
-    messages
-      .map((msg) => msg.content)
-      .map(detectMood)
-      .find(Boolean) ||
-    "neutral";
-  const preference =
-    detectPreference(text) ||
-    messages
+const getUserMessages = (messages) =>
+  messages.filter((msg) => msg.role === "user");
+
+const inferPreferenceFromMessages = (messages) => {
+  const userMessages = getUserMessages(messages);
+  return (
+    userMessages
       .map((msg) => msg.content)
       .map(detectPreference)
-      .find(Boolean);
+      .find(Boolean) || ""
+  );
+};
+
+const extractGenreTags = (text) => {
+  const lower = text.toLowerCase();
+  const tags = [];
+  if (lower.includes("teen")) tags.push("teen");
+  if (lower.includes("love") || lower.includes("romance")) tags.push("romance");
+  if (lower.includes("coming of age")) tags.push("coming-of-age");
+  if (lower.includes("comedy") || lower.includes("funny")) tags.push("comedy");
+  if (lower.includes("drama")) tags.push("drama");
+  if (lower.includes("sci-fi") || lower.includes("science fiction"))
+    tags.push("sci-fi");
+  if (lower.includes("horror")) tags.push("horror");
+  if (lower.includes("thriller")) tags.push("thriller");
+  return [...new Set(tags)];
+};
+
+const buildPromptFromContext = (preference, mood, userText, tags = []) => {
+  const base =
+    MOOD_PROMPTS[mood]?.[preference] || MOOD_PROMPTS.neutral[preference];
+  const tagLine = tags.length ? ` with ${tags.join(", ")}` : "";
+  return `${base}${tagLine}. User context: "${userText}"`;
+};
+
+const inferMoodFromMessages = (messages) => {
+  const userMessages = getUserMessages(messages);
+  return (
+    userMessages
+      .map((msg) => msg.content)
+      .map(detectMood)
+      .find(Boolean) || "neutral"
+  );
+};
+
+const buildFallbackResponse = (messages) => {
+  const userMessages = getUserMessages(messages);
+  const lastUser = [...userMessages].reverse()[0];
+  const text = lastUser?.content || "";
+  const mood = detectMood(text) || inferMoodFromMessages(messages);
+  const preference = detectPreference(text);
   const year =
     extractYear(text) ||
-    messages
+    userMessages
       .map((msg) => msg.content)
       .map(extractYear)
       .find(Boolean);
@@ -135,6 +249,24 @@ const buildFallbackResponse = (messages) => {
         mood,
         year
       };
+    }
+    if (detectAnother(text)) {
+      const lastPreference = inferPreferenceFromMessages(messages);
+      if (lastPreference) {
+        return {
+          reply:
+            lastPreference === "match"
+              ? "Got it. I’ll match the mood and find something fitting."
+              : "Absolutely. I’ll look for something light and uplifting.",
+          mood,
+          preference: lastPreference,
+          year,
+          action: "recommend",
+          prompt:
+            MOOD_PROMPTS[mood]?.[lastPreference] ||
+            MOOD_PROMPTS.neutral[lastPreference]
+        };
+      }
     }
     return {
       reply:
@@ -193,37 +325,50 @@ const callOpenAI = async (messages) => {
 
 const callGemini = async (messages) => {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text:
-                  "You are a warm, supportive movie companion named CineSense. Respond with empathy, short and natural. If the user greets you or asks about you, respond naturally before asking about how they feel. Only recommend a movie AFTER the user explicitly chooses match or uplift. If a release year is mentioned, include it. Respond ONLY with JSON: {\"reply\":\"\", \"mood\":\"\", \"preference\":\"match|uplift|\", \"action\":\"recommend|\", \"prompt\":\"\", \"year\":\"\"}."
-              }
-            ]
-          },
-          ...messages.map((message) => ({
-            role: message.role === "assistant" ? "model" : "user",
-            parts: [{ text: message.content }]
-          }))
-        ],
+        systemInstruction: {
+          parts: [
+            {
+              text:
+                "You are a warm, supportive movie companion named CineSense. Always return valid JSON and ALWAYS include a non-empty reply. If the user greets you or asks about you, respond naturally before asking about how they feel. Only recommend a movie AFTER the user explicitly chooses match or uplift. If a release year is mentioned, include it. If preference is set and you are recommending, you MUST include a concise prompt for the movie recommender. Respond ONLY with JSON: {\"reply\":\"\", \"mood\":\"\", \"preference\":\"match|uplift|\", \"action\":\"recommend|\", \"prompt\":\"\", \"year\":\"\"}."
+            }
+          ]
+        },
+        contents: messages.map((message) => ({
+          role: message.role === "assistant" ? "model" : "user",
+          parts: [{ text: message.content }]
+        })),
         generationConfig: {
-          temperature: 0.4
+          temperature: 0.4,
+          response_mime_type: "application/json"
         }
       })
     }
   );
 
   if (!response.ok) {
-    throw new Error("Gemini request failed");
+    const errorText = await response.text();
+    let errorJson = null;
+    try {
+      errorJson = JSON.parse(errorText);
+    } catch (parseError) {
+      // ignore parse failures
+    }
+    const error = new Error(
+      errorJson?.error?.message || errorText || "Gemini request failed"
+    );
+    error.status = response.status;
+    error.retryDelay =
+      errorJson?.error?.details?.find(
+        (detail) => detail["@type"] === "type.googleapis.com/google.rpc.RetryInfo"
+      )?.retryDelay || null;
+    throw error;
   }
 
   const data = await response.json();
@@ -235,6 +380,26 @@ const callGemini = async (messages) => {
   return parsed;
 };
 
+const normalizeChatResult = (result) => {
+  if (!result || typeof result !== "object") {
+    throw new Error("Invalid Gemini response");
+  }
+
+  if (!result.reply || typeof result.reply !== "string") {
+    throw new Error("Gemini response missing reply");
+  }
+
+  if (result.action === "recommend" && !result.prompt) {
+    return {
+      ...result,
+      action: "",
+      prompt: ""
+    };
+  }
+
+  return result;
+};
+
 export async function POST(request) {
   const { messages } = await request.json();
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -244,20 +409,18 @@ export async function POST(request) {
     );
   }
 
-  if (!GEMINI_API_KEY) {
-    return Response.json(
-      { message: "Missing Gemini API key. Set GEMINI_API_KEY." },
-      { status: 500 }
-    );
-  }
-
   try {
-    const result = await callGemini(messages);
-    return Response.json(result);
+    if (GEMINI_API_KEY) {
+      const result = await callGemini(messages);
+      const normalized = normalizeChatResult(result);
+      return Response.json({ ...normalized, engine: "gemini" });
+    }
   } catch (error) {
-    // fall back to heuristic response
+    // ignore and fall through to local
   }
-
   const fallback = buildFallbackResponse(messages);
-  return Response.json(fallback);
+  return Response.json({
+    ...fallback,
+    engine: "local"
+  });
 }

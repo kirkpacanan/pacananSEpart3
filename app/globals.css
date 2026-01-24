@@ -11,14 +11,13 @@
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(15, 23, 42, 0.12);
 }
 
 .dark .glass {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 15, 15, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .spinner {
@@ -33,5 +32,44 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+.poster-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 20px;
+  opacity: 0.2;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.poster-track {
+  display: flex;
+  gap: 20px;
+  animation: scroll-posters 60s linear infinite;
+}
+
+.poster-track.reverse {
+  animation-direction: reverse;
+}
+
+.poster-image {
+  width: 140px;
+  height: 210px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes scroll-posters {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
   }
 }
