@@ -21,3 +21,5 @@ OMDb API.
 - OMDb movie lookup + detail fetch
 - Loading spinner, error handling, retry, and history list
 - Dark mode toggle
+
+Updated back to cinesense
